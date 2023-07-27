@@ -9,7 +9,7 @@
 
 ### MAPC pilot Behavioural Preprocessing ###########################
 ### LOAD LIBRARIES
-library(tidyverse) 
+library(tidyverse)
 library(plyr)
 library(dplyr) 
 library(lme4)
@@ -20,6 +20,7 @@ library(lmerTest)
 library(ggeffects)
 library(ggplot2)
 library(writexl)
+library(effects)
 
 ##### Set environment #####
 rm(list = ls()) # Clear environment
@@ -139,7 +140,13 @@ emmeans0.1 <- emmeans(chosenModel[[1]], pairwise ~ stimCondition | pictureCondit
 emmeans0.2 <- emmeans(chosenModel[[1]], pairwise ~ pictureCondition | stimCondition, adjust ="none", type = "response") #we don't adjust because we do this later
 emm0.1 <- summary(emmeans0.1)$emmeans
 emmeans0.1$contrasts
-pvalues  = append(pvalues ,summary(emmeans0.1$contrasts)$p.value) # Add pvalues to dataframe to later correct all
+pvalues = append(pvalues ,summary(emmeans0.1$contrasts)$p.value) # Add pvalues to dataframe to later correct all
+
+# Correct P values  ######
+names = c("ME", "SS", "FB", "TB")
+ps = list()
+ps[names] = p.adjust(pvalues, method = "fdr", length(pvalues)) # Create list containing fdr corrected pvalues
+collectedPvalues = ps
 
 # emmeans_interaction <- emmeans(chosenModel[[1]], ~ stimCondition:pictureCondition, type = "response")
 # pairwise_comparisons <- pairs(emmeans_interaction, adjust = "fdr")
@@ -147,6 +154,19 @@ pvalues  = append(pvalues ,summary(emmeans0.1$contrasts)$p.value) # Add pvalues 
 ## Plotting #####
 ## Get significant p-values
 emmeans0.1$contrasts # just ME 1vs2
+
+# Turn into a df
+emmeans_summary <- summary(emmeans0.1$emmeans, infer = c(TRUE, TRUE), level = 0.95)
+
+# Convert the summary to a data frame
+emm_df <- as.data.frame(emmeans_summary)
+
+# Reshape the data frame to a tidy format
+emm_df <- emm_df %>%
+  separate(emmeans, into = c("stimCondition", "pictureCondition"), sep = ",") %>%
+  mutate(across(c(stimCondition, pictureCondition), as.factor)) %>%
+  rename(response = estimate, SE = SE)
+
 
 ## Plot
 pd = 0.2 #position dodge
@@ -200,13 +220,6 @@ for(i in 1:length(effSummary$pictureCondition )){
   forestdf[nrow(forestdf) + 1,] = c(name, as.character(effSummary$pictureCondition[i]), effectsize, Lower, Upper, SE)
   print(forestdf)
 }
-
-# add p valuse
-# Correct P values SPEECH ######
-names = c("ME", "SS", "FB", "TB")
-ps = list()
-ps[names] = p.adjust(pvalues, method = "fdr", length(pvalues)) # Create list containing fdr corrected pvalues
-collectedPvalues = ps
 
 # Make forest
 # you can do the factoring here

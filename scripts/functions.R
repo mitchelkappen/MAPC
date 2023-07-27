@@ -17,6 +17,7 @@ DoubleMAD <- function(x, zero.mad.action="warn"){
   }
   return(c(left.mad, right.mad))
 } ## outliers verwijderen niet obv std, verondersteld een normaalverdeling 
+
 DoubleMADsFromMedian <- function(x, zero.mad.action="warn"){
   # The zero.mad.action determines the action in the event of an MAD of zero.
   # Possible values: "stop", "warn", "na" and "warn and na".
