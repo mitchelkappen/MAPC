@@ -8,31 +8,16 @@
 # 27/07/2023
 
 ### MAPC pilot Behavioural Preprocessing ###########################
-
-
 ### LOAD LIBRARIES
 library(tidyverse) 
 library(plyr)
 library(dplyr) 
-# library(magrittr) 
-# library(readxl)
 library(lme4)
-# library(gridExtra) 
-# library(DHARMa)
 library(broom.mixed)
-# library(ggpirate) 
-# library(gdata) 
 library(car) 
-# library(phia)
 library(emmeans)
-# library(simr) 
-# library(pbkrtest)
 library(lmerTest) 
-# library(multcomp) 
-# library(nlme) 
 library(ggeffects)
-# library(splines)
-# library(stringr)
 library(ggplot2)
 library(writexl)
 
@@ -120,25 +105,18 @@ rm(Data_filtered_FB, Data_filtered_FB_out, Data_filtered_TB, Data_filtered_TB_ou
    Data_filtered_SS, Data_filtered_SS_out, Data_filtered_ME, Data_filtered_ME_out)
 ### MAPC pilot Behavioural Analysis ################################
 ### LOAD LIBRARIES
-# library(optimx) 
-# library(tidyverse)
-# library(lme4)
-# library(mixedup)
-
 ##### GENERALIZED LINEAR MIXED MODELS ANALYSIS ##### 
-
-# Input data -> choose one
-# inputData = Data_filtered_out
+# Input data for models
 inputData = Data_filtered_outBYpicture # Choose this one
 
 # Formula -> Choose one
-formula = "RT1 ~ session*stimCondition*pictureCondition + (1|subject)"
+# formula = "RT1 ~ session*stimCondition*pictureCondition + (1|subject)"
 formula = "RT1 ~ stimCondition*pictureCondition + (1|subject)" #this one gives best results so far
-formula = "RT1 ~ stimCondition*pictureCondition + (1|subject) + (1|session)"
-
-formula = "RT1 ~ stimCondition*pictureCondition + (1+stimCondition*pictureCondition|subject)"
-formula = "RT1 ~ stimCondition*pictureCondition + (1+stimCondition*pictureCondition*session|subject) "
-formula = "RT1 ~ stimCondition*pictureCondition + (1+stimCondition+pictureCondition|subject)"
+# formula = "RT1 ~ stimCondition*pictureCondition + (1|subject) + (1|session)"
+# 
+# formula = "RT1 ~ stimCondition*pictureCondition + (1+stimCondition*pictureCondition|subject)"
+# formula = "RT1 ~ stimCondition*pictureCondition + (1+stimCondition*pictureCondition*session|subject) "
+# formula = "RT1 ~ stimCondition*pictureCondition + (1+stimCondition+pictureCondition|subject)"
 
 ## Models --> Inverse Gaussian Identity link  gives the best results
 ### Mitch stuff
@@ -161,24 +139,29 @@ emmeans0.2 <- emmeans(chosenModel[[1]], pairwise ~ pictureCondition | stimCondit
 emm0.1 <- summary(emmeans0.1)$emmeans
 emmeans0.1$contrasts
 
-emmeans_interaction <- emmeans(chosenModel[[1]], ~ stimCondition:pictureCondition, type = "response")
-pairwise_comparisons <- pairs(emmeans_interaction, adjust = "fdr")
+# emmeans_interaction <- emmeans(chosenModel[[1]], ~ stimCondition:pictureCondition, type = "response")
+# pairwise_comparisons <- pairs(emmeans_interaction, adjust = "fdr")
 
 ## Plotting
-# figure = behaviorplot(emm0.1, stimCondition, pictureCondition, "Stim X Pic") # Create plot
-# figure = addpvalues(figure, emmeans0.1)
-# figure = addpvaluesBetween(figure, emmeans0.2)
-# savePlot(figure, "StimxPic") # Display and save plot
+## Get significant p-values
+emmeans0.1$contrasts # just ME 1vs2
 
-## plotting 2
-inputData$interaction <- interaction(inputData$pictureCondition, inputData$stimCondition)
+## Plot
+pd = 0.2 #position dodge
+p <- ggplot(emm_df, aes(x = pictureCondition, y = response, group = stimCondition)) +
+  geom_point(aes(color = stimCondition), size = 3, position = position_dodge(pd)) +
+  geom_errorbar(aes(ymin = response - SE, ymax = response + SE, color = stimCondition), width = 0.2, position = position_dodge(pd)) +
+  labs(x = "Picture Condition", 
+       y = "Estimated Marginal Means", 
+       title = "Estimated Marginal Means for each Picture Condition by Stim Condition",
+       color = "Stim Condition") +
+  scale_colour_manual(values=cbPalette) +
+  plot_theme_apa() +
+  theme(legend.position = "bottom") #Change the position of the legend
+p <- p + annotate(geom="text", x= 1.2, y= 14396, label= '*', size = 10) # Add the star to the plot## Significance
 
-ggstatsplot::ggbetweenstats(data = inputData, 
-                            x = interaction, 
-                            y = RT1, 
-                            title = "Interaction effect")
-
-### Computation of effect sizes ####################################
+savePlot(p, "StimxPic") # Display and save plot
+##### Computation of effect sizes ######
 
 ## Fit the mixed-effects model
 inputModel = chosenModel[[1]]
@@ -193,9 +176,8 @@ TB_predictedData <- predictedResults[predictedResults$pictureCondition == 'TB', 
 SS_predictedData <- predictedResults[predictedResults$pictureCondition == 'SS', ] 
 ME_predictedData <- predictedResults[predictedResults$pictureCondition == 'ME', ] 
 
-### Effect of the stimCondition on each condition fitted values
-c("1" = "ME", "2" = "SS", "3" = "FB", "5" = "TB")
-## FALSE BELIEF
+##### Effect of the stimCondition on each condition fitted values #####
+## FALSE BELIEF ####
 # Calculate the mean for stimCondition and sham
 FBmeanFit_stim <- aggregate(.fitted ~ subject, data = FB_predictedData[FB_predictedData$stimCondition == 'active', ], FUN = mean)
 FBmeanFit_sham <- aggregate(.fitted ~ subject, data = FB_predictedData[FB_predictedData$stimCondition == 'sham', ], FUN = mean)
@@ -204,7 +186,7 @@ FBsubject_meanFit_diff <- merge(FBmeanFit_stim, FBmeanFit_sham, by = "subject", 
 FBsubject_meanFit_diff$mean_difference <- FBsubject_meanFit_diff$.fitted_stim - FBsubject_meanFit_diff$.fitted_sham
 
 
-## TRUE BELIEF
+## TRUE BELIEF ####
 
 # Calculate the mean for stimCondition and sham
 TBmeanFit_stim <- aggregate(.fitted ~ subject, data = TB_predictedData[TB_predictedData$stimCondition == 'active', ], FUN = mean)
@@ -214,7 +196,7 @@ TBsubject_meanFit_diff <- merge(TBmeanFit_stim, TBmeanFit_sham, by = "subject", 
 TBsubject_meanFit_diff$mean_difference <- TBsubject_meanFit_diff$.fitted_stim - TBsubject_meanFit_diff$.fitted_sham
 
 
-## SOCIAL SCRIPT
+## SOCIAL SCRIPT ####
 
 # Calculate the mean for stimCondition and sham
 SSmeanFit_stim <- aggregate(.fitted ~ subject, data = SS_predictedData[SS_predictedData$stimCondition == 'active', ], FUN = mean)
@@ -224,7 +206,7 @@ SSsubject_meanFit_diff <- merge(SSmeanFit_stim, SSmeanFit_sham, by = "subject", 
 SSsubject_meanFit_diff$mean_difference <- SSsubject_meanFit_diff$.fitted_stim - SSsubject_meanFit_diff$.fitted_sham
 
 
-## MECHANICAL
+## MECHANICAL ####
 
 # Calculate the mean for stimCondition and sham
 MEmeanFit_stim <- aggregate(.fitted ~ subject, data = ME_predictedData[ME_predictedData$stimCondition == 'active', ], FUN = mean)
@@ -233,11 +215,9 @@ MEmeanFit_sham <- aggregate(.fitted ~ subject, data = ME_predictedData[ME_predic
 MEsubject_meanFit_diff <- merge(MEmeanFit_stim, MEmeanFit_sham, by = "subject", suffixes = c("_stim", "_sham"))
 MEsubject_meanFit_diff$mean_difference <- MEsubject_meanFit_diff$.fitted_stim - MEsubject_meanFit_diff$.fitted_sham
 
-###############################################################################
+##### Effect of the stimCondition on each condition residuals #####
 
-### Effect of the stimCondition on each condition residuals
-
-## FALSE BELIEF
+## FALSE BELIEF ####
 
 # Calculate the mean for stimCondition and sham
 FBmeanRes_stim <- aggregate(.resid ~ subject, data = FB_predictedData[FB_predictedData$stimCondition == 'active', ], FUN = mean)
@@ -247,7 +227,7 @@ FBsubject_meanRes_diff <- merge(FBmeanRes_stim, FBmeanRes_sham, by = "subject", 
 FBsubject_meanRes_diff$mean_difference <- FBsubject_meanRes_diff$.resid_stim - FBsubject_meanRes_diff$.resid_sham
 
 
-## TRUE BELIEF
+## TRUE BELIEF ####
 
 # Calculate the mean for stimCondition and sham
 TBmeanRes_stim <- aggregate(.resid ~ subject, data = TB_predictedData[TB_predictedData$stimCondition == 'active', ], FUN = mean)
@@ -258,7 +238,7 @@ TBsubject_meanRes_diff <- merge(TBmeanRes_stim, TBmeanRes_sham, by = "subject", 
 TBsubject_meanRes_diff$mean_difference <- TBsubject_meanRes_diff$.resid_stim - TBsubject_meanRes_diff$.resid_sham
 
 
-## SOCIAL SCRIPT
+## SOCIAL SCRIPT ####
 
 # Calculate the mean for stimCondition and sham
 SSmeanRes_stim <- aggregate(.resid ~ subject, data = SS_predictedData[SS_predictedData$stimCondition == 'active', ], FUN = mean)
@@ -268,7 +248,7 @@ SSsubject_meanRes_diff <- merge(SSmeanRes_stim, SSmeanRes_sham, by = "subject", 
 SSsubject_meanRes_diff$mean_difference <- SSsubject_meanRes_diff$.resid_stim - SSsubject_meanRes_diff$.resid_sham
 
 
-## MECHANICAL
+## MECHANICAL ####
 
 # Calculate the mean for stimCondition and sham
 MEmeanRes_stim <- aggregate(.resid ~ subject, data = ME_predictedData[ME_predictedData$stimCondition == 'active', ], FUN = mean)
