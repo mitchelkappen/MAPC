@@ -31,6 +31,7 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) #Set WD to script lo
 source("functions.R") # Load document where functions are stored
 options(contrasts = c("contr.sum","contr.poly")) #use this for the p value of the t test
 plotDirectory <- "../figures/"
+pvalues = c() # Create a variable to store all p-values to correct later
 
 nAGQ = 1
 ##### IMPORT DATA #####
@@ -138,11 +139,12 @@ emmeans0.1 <- emmeans(chosenModel[[1]], pairwise ~ stimCondition | pictureCondit
 emmeans0.2 <- emmeans(chosenModel[[1]], pairwise ~ pictureCondition | stimCondition, adjust ="none", type = "response") #we don't adjust because we do this later
 emm0.1 <- summary(emmeans0.1)$emmeans
 emmeans0.1$contrasts
+pvalues  = append(pvalues ,summary(emmeans0.1$contrasts)$p.value) # Add pvalues to dataframe to later correct all
 
 # emmeans_interaction <- emmeans(chosenModel[[1]], ~ stimCondition:pictureCondition, type = "response")
 # pairwise_comparisons <- pairs(emmeans_interaction, adjust = "fdr")
 
-## Plotting
+## Plotting #####
 ## Get significant p-values
 emmeans0.1$contrasts # just ME 1vs2
 
@@ -161,7 +163,97 @@ p <- ggplot(emm_df, aes(x = pictureCondition, y = response, group = stimConditio
 p <- p + annotate(geom="text", x= 1.2, y= 14396, label= '*', size = 10) # Add the star to the plot## Significance
 
 savePlot(p, "StimxPic") # Display and save plot
+
+## Different plot #####
+library(yarrr)
+
+# Create the pirate plot
+pirateplot(formula = RT1 ~ stimCondition * pictureCondition,
+           data = inputData,
+           pal = cbPalette,  # use custom colors
+           xlab = "Stim Condition and Picture Condition",
+           ylab = "RT1",
+           main = "Comparison of RT1 across Stim Conditions and Picture Conditions",
+           theme = 2  # try a different theme
+)
+
 ##### Computation of effect sizes ######
+
+##### Mitchel Effect Size #####
+# Create empty forestplot df
+forestdf <- setNames(data.frame(matrix(ncol = 5, nrow = 0)), c("Outcome" = character(0), "D" = numeric(0), "Lower" = numeric(0), "Upper" = numeric(0), "Group" = character(0)))
+forestdf = data.frame(Outcome=character(0), Group=character(0),  effectsize=numeric(0), Lower=numeric(0), Upper=numeric(0), SE=numeric(0))
+
+# Get effect sizes
+effSummary <- summary(eff_size(emmeans0.1, sigma=sigma(chosenModel[[1]]), edf=df.residual(chosenModel[[1]])))
+# Cohen's D for Forest Plots
+for(i in 1:length(effSummary$pictureCondition )){
+  name = as.character(effSummary$pictureCondition[i])
+  effectsize = effSummary$effect.size[i] * -1 # Inverted
+  Upper = effSummary$asymp.LCL[i] * -1 # Inverted
+  Lower = effSummary$asymp.UCL[i] * -1 # Inverted
+  
+  contrastdf = summary(emmeans0.1$contrasts) # get contrasts
+  Beta = contrastdf$estimate[i] * -1 # Inverted
+  SE = contrastdf$SE[i]
+  t = contrastdf$t.ratio[i] * -1 # Inverted
+  forestdf[nrow(forestdf) + 1,] = c(name, as.character(effSummary$pictureCondition[i]), effectsize, Lower, Upper, SE)
+  print(forestdf)
+}
+
+# add p valuse
+# Correct P values SPEECH ######
+names = c("ME", "SS", "FB", "TB")
+ps = list()
+ps[names] = p.adjust(pvalues, method = "fdr", length(pvalues)) # Create list containing fdr corrected pvalues
+collectedPvalues = ps
+
+# Make forest
+# you can do the factoring here
+forestdf$Outcome = factor(forestdf$Outcome, levels = c("ME", "SS", "FB", "TB"))
+
+# Make them numeric
+forestdf$effectsize = round(as.numeric(forestdf$effectsize), digits = 2)
+forestdf$Lower = round(as.numeric(forestdf$Lower), digits = 3)
+forestdf$Upper = round(as.numeric(forestdf$Upper), digits = 3)
+forestdf$SE = round(as.numeric(forestdf$SE), digits = 3)
+
+forestdf$pvalues = round(as.numeric(collectedPvalues), digits = 3)
+
+#define colours for dots and bars
+# dotCOLS = c("#a6d8f0","#f9b282") # these are actually the bars
+barCOLS = c("#56B4E9", "#E69F00", "#56B4E9", "#E69F00")
+dotCOLS = c("#56B4E9", "#E69F00", "#56B4E9", "#E69F00")
+boxlims = c(0.5, 6.5, 10.5, 12.5)
+
+dodgevar = 0.5
+##### Make Forest plot ####
+forestplot <- ggplot(forestdf, aes(x=Outcome, y=effectsize, ymin=Upper, ymax=Lower,col=Group,fill=Group, group=Group)) + 
+  # Draw forestplot
+  geom_linerange(size=8,position=position_dodge(width = dodgevar), alpha = ifelse(forestdf$pvalues < .05, 1, 0.5)) +
+  geom_hline(yintercept=0, lty=2, size = 1.5) + # Draw vertical 0 line
+  
+  # Create dots for effect sizes
+  geom_point(size=4, shape=21, colour= ifelse(forestdf$pvalues < .05, "black", "white"), alpha = ifelse(forestdf$pvalues < .05, 1, 0.5),
+             stroke = 1.4, position=position_dodge(width = dodgevar)) +
+  
+  # Set bar and dot colors
+  scale_fill_manual(values=barCOLS)+
+  scale_color_manual(values=dotCOLS)+
+  
+  # Set figure specifics
+  scale_x_discrete(name="") +
+  scale_y_continuous(limits = c(-.6, .8)) +
+  
+  # Set orientation and theme
+  coord_flip()+
+  theme_pubr() +
+  plot_theme_apa()+
+  ylab("Effect Size (Cohen's D) with 95% CI") + # Plot is flipped, this is actually the x-axis
+  theme(legend.position = "bottom", legend.text = element_text(size = 18), legend.title = element_text(size = 18))
+
+forestplot
+savePlot(forestplot, "forestPlot") # Display and save plot
 
 ## Fit the mixed-effects model
 inputModel = chosenModel[[1]]
