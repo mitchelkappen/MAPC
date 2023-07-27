@@ -120,6 +120,8 @@ formula = "RT1 ~ stimCondition*pictureCondition + (1|subject)" #this one gives b
 # formula = "RT1 ~ stimCondition*pictureCondition + (1+stimCondition*pictureCondition*session|subject) "
 # formula = "RT1 ~ stimCondition*pictureCondition + (1+stimCondition+pictureCondition|subject)"
 
+formula = "RT1 ~ stimCondition*pictureCondition + unknownVariable + (1|subject)"
+
 ## Models --> Inverse Gaussian Identity link  gives the best results
 ### Mitch stuff
 d0.1 <- lmer(formula,data=inputData)
@@ -166,7 +168,6 @@ emm_df <- emm_df %>%
   separate(emmeans, into = c("stimCondition", "pictureCondition"), sep = ",") %>%
   mutate(across(c(stimCondition, pictureCondition), as.factor)) %>%
   rename(response = estimate, SE = SE)
-
 
 ## Plot
 pd = 0.2 #position dodge
@@ -218,7 +219,6 @@ for(i in 1:length(effSummary$pictureCondition )){
   SE = contrastdf$SE[i]
   t = contrastdf$t.ratio[i] * -1 # Inverted
   forestdf[nrow(forestdf) + 1,] = c(name, as.character(effSummary$pictureCondition[i]), effectsize, Lower, Upper, SE)
-  print(forestdf)
 }
 
 # Make forest
@@ -260,7 +260,6 @@ forestplot <- ggplot(forestdf, aes(x=Outcome, y=effectsize, ymin=Upper, ymax=Low
   
   # Set orientation and theme
   coord_flip()+
-  theme_pubr() +
   plot_theme_apa()+
   ylab("Effect Size (Cohen's D) with 95% CI") + # Plot is flipped, this is actually the x-axis
   theme(legend.position = "bottom", legend.text = element_text(size = 18), legend.title = element_text(size = 18))
@@ -276,7 +275,7 @@ predictedResults <- broom.mixed::augment(inputModel)
 write_xlsx(predictedResults,"../output/predictedResults.xlsx")
 
 ## Filter data per picture condition
-FB_predictedData <- predictedResults[predictedResults$pictureCondition == 'FB', ] 
+FB_predictedData <- predictedResults[predictedResults$pictureCondition == 'FB', ]
 TB_predictedData <- predictedResults[predictedResults$pictureCondition == 'TB', ]
 SS_predictedData <- predictedResults[predictedResults$pictureCondition == 'SS', ] 
 ME_predictedData <- predictedResults[predictedResults$pictureCondition == 'ME', ] 
